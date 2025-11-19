@@ -467,30 +467,43 @@
     }
 
     // Get absolute paths for private/public key pair
-    const char *pubKey = [[publicKey stringByExpandingTildeInPath] UTF8String] ?: NULL;
+    NSString *pubKeyPath = [publicKey stringByExpandingTildeInPath];
     const char *privKey = [[privateKey stringByExpandingTildeInPath] UTF8String] ?: NULL;
+    const char *pubKey = NULL;
+    NSString *tempPubKeyPath = nil;
 
     // Read public key and convert ssh-rsa to rsa-sha2-256 if needed
     // Server requires rsa-sha2-256/512, not ssh-rsa
-    NSData *pubKeyData = [NSData dataWithContentsOfFile:[NSString stringWithUTF8String:pubKey]];
-    if (pubKeyData) {
-        NSString *pubKeyString = [[NSString alloc] initWithData:pubKeyData encoding:NSUTF8StringEncoding];
-        if ([pubKeyString containsString:@"ssh-rsa "]) {
-            // Convert ssh-rsa to rsa-sha2-256 format
-            // OpenSSH public key format: "algorithm base64-key comment"
-            NSArray *components = [pubKeyString componentsSeparatedByString:@" "];
-            if (components.count >= 2) {
-                NSString *base64Key = components[1];
-                NSString *comment = components.count >= 3 ? components[2] : @"";
-                NSString *convertedPubKey = [NSString stringWithFormat:@"rsa-sha2-256 %@ %@", base64Key, comment];
-                
-                // Write converted key to temporary file
-                NSString *tempPubKeyPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"pubkey_%d.pub", arc4random()]];
-                [convertedPubKey writeToFile:tempPubKeyPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
-                pubKey = [tempPubKeyPath UTF8String];
-                
-                NMSSHLogInfo(@"Converted ssh-rsa public key to rsa-sha2-256 format");
+    if (pubKeyPath) {
+        NSData *pubKeyData = [NSData dataWithContentsOfFile:pubKeyPath];
+        if (pubKeyData) {
+            NSString *pubKeyString = [[NSString alloc] initWithData:pubKeyData encoding:NSUTF8StringEncoding];
+            if (pubKeyString && [pubKeyString containsString:@"ssh-rsa "]) {
+                // Convert ssh-rsa to rsa-sha2-256 format
+                // OpenSSH public key format: "algorithm base64-key comment"
+                NSArray *components = [pubKeyString componentsSeparatedByString:@" "];
+                if (components.count >= 2) {
+                    NSString *base64Key = components[1];
+                    NSString *comment = components.count >= 3 ? components[2] : @"";
+                    NSString *convertedPubKey = [NSString stringWithFormat:@"rsa-sha2-256 %@ %@", base64Key, comment];
+                    
+                    // Write converted key to temporary file
+                    tempPubKeyPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"pubkey_%u.pub", arc4random()]];
+                    if ([convertedPubKey writeToFile:tempPubKeyPath atomically:YES encoding:NSUTF8StringEncoding error:nil]) {
+                        pubKey = [tempPubKeyPath UTF8String];
+                        NMSSHLogInfo(@"Converted ssh-rsa public key to rsa-sha2-256 format");
+                    } else {
+                        pubKey = [pubKeyPath UTF8String];
+                        NMSSHLogWarn(@"Failed to write converted public key, using original");
+                    }
+                } else {
+                    pubKey = [pubKeyPath UTF8String];
+                }
+            } else {
+                pubKey = [pubKeyPath UTF8String];
             }
+        } else {
+            pubKey = [pubKeyPath UTF8String];
         }
     }
 
