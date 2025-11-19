@@ -319,11 +319,21 @@
     // libssh2 1.11.0 supports ssh-ed25519 for host keys
     // IMPORTANT: libssh2_session_method_pref should restrict what's offered, not just prefer
     // If prefvar is set, libssh2 uses that string directly in the KEXINIT message
-    const char *hostkeyAlgorithms = "ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256";
+    // Try ONLY ssh-ed25519 first to force libssh2 to use it
+    const char *hostkeyAlgorithms = "ssh-ed25519";
+    NMSSHLogInfo(@"Attempting to set host key algorithms to: %s", hostkeyAlgorithms);
     int hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
     if (hostkeyPrefResult != 0) {
         NMSSHLogError(@"CRITICAL: Failed to set host key algorithms preference! Error code: %d", hostkeyPrefResult);
         NMSSHLogError(@"libssh2 will use defaults which may include ssh-rsa and ssh-dss");
+        // Try with ECDSA as fallback
+        hostkeyAlgorithms = "ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256";
+        hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
+        if (hostkeyPrefResult == 0) {
+            NMSSHLogInfo(@"Successfully configured host key algorithms (fallback): %s", hostkeyAlgorithms);
+        } else {
+            NMSSHLogError(@"CRITICAL: Fallback also failed! Error code: %d", hostkeyPrefResult);
+        }
     } else {
         NMSSHLogInfo(@"Successfully configured host key algorithms (restricted to): %s", hostkeyAlgorithms);
     }
