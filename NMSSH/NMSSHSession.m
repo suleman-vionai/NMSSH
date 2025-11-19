@@ -314,26 +314,16 @@
         NMSSHLogVerbose(@"Configured preferred KEX algorithms: %s", kexAlgorithms);
     }
 
-    // Configure host key algorithms to restrict to only what server accepts
-    // Server has ssh-rsa and ssh-ed25519 host keys, but rejects ssh-rsa in HostkeyAlgorithms
-    // libssh2 1.11.0 supports ssh-ed25519 for host keys
-    // IMPORTANT: libssh2_session_method_pref should restrict what's offered, not just prefer
-    // If prefvar is set, libssh2 uses that string directly in the KEXINIT message
-    // Try ONLY ssh-ed25519 first to force libssh2 to use it
-    const char *hostkeyAlgorithms = "ssh-ed25519";
+    // Configure host key algorithms according to requirements
+    // Allowed Host Key Algorithms (for clients): ecdsa-sha2-nistp384, ecdsa-sha2-nistp256, ecdsa-sha2-nistp521, ssh-rsa:2048, ssh-rsa:3072, ssh-rsa:4096
+    // Note: OpenSSH doesn't use key size in algorithm name, so we use "ssh-rsa" and "ecdsa-sha2-nistp*"
+    // Order: ECDSA first (more secure), then RSA
+    const char *hostkeyAlgorithms = "ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256,ssh-rsa";
     NMSSHLogInfo(@"Attempting to set host key algorithms to: %s", hostkeyAlgorithms);
     int hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
     if (hostkeyPrefResult != 0) {
         NMSSHLogError(@"CRITICAL: Failed to set host key algorithms preference! Error code: %d", hostkeyPrefResult);
         NMSSHLogError(@"libssh2 will use defaults which may include ssh-rsa and ssh-dss");
-        // Try with ECDSA as fallback
-        hostkeyAlgorithms = "ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256";
-        hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
-        if (hostkeyPrefResult == 0) {
-            NMSSHLogInfo(@"Successfully configured host key algorithms (fallback): %s", hostkeyAlgorithms);
-        } else {
-            NMSSHLogError(@"CRITICAL: Fallback also failed! Error code: %d", hostkeyPrefResult);
-        }
     } else {
         NMSSHLogInfo(@"Successfully configured host key algorithms (restricted to): %s", hostkeyAlgorithms);
     }
