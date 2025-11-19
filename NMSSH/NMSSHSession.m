@@ -314,6 +314,18 @@
         NMSSHLogVerbose(@"Configured preferred KEX algorithms: %s", kexAlgorithms);
     }
 
+    // Configure host key algorithms to prefer modern algorithms
+    // Server has ssh-rsa and ssh-ed25519 host keys
+    // Prefer ssh-ed25519 and ssh-rsa (libssh2 1.8.0 supports these)
+    // Note: rsa-sha2-256/512 may not be supported for host keys in 1.8.0
+    const char *hostkeyAlgorithms = "ssh-ed25519,ssh-rsa";
+    int hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
+    if (hostkeyPrefResult != 0) {
+        NMSSHLogWarn(@"Failed to set preferred host key algorithms, using defaults. Error code: %d", hostkeyPrefResult);
+    } else {
+        NMSSHLogVerbose(@"Configured preferred host key algorithms: %s", hostkeyAlgorithms);
+    }
+
     // Start the session
     if (libssh2_session_handshake(self.session, CFSocketGetNative(_socket))) {
         NMSSHLogError(@"Failure establishing SSH session");
