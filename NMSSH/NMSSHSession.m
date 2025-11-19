@@ -315,13 +315,20 @@
     }
 
     // Configure host key algorithms to prefer modern algorithms
-    // Server has ssh-rsa and ssh-ed25519 host keys
-    // libssh2 1.11.0 supports rsa-sha2-256/512 for host keys
-    // Prefer modern algorithms first, then fallback to ssh-rsa
-    const char *hostkeyAlgorithms = "rsa-sha2-512,rsa-sha2-256,ssh-ed25519,ssh-rsa";
+    // Server has ssh-rsa and ssh-ed25519 host keys, but rejects ssh-rsa in HostkeyAlgorithms
+    // libssh2 1.11.0 supports ssh-ed25519 for host keys
+    // Try only ssh-ed25519 first since server has this host key and likely accepts it
+    // If that fails, libssh2 will fall back to other algorithms it supports
+    const char *hostkeyAlgorithms = "ssh-ed25519";
     int hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
     if (hostkeyPrefResult != 0) {
         NMSSHLogWarn(@"Failed to set preferred host key algorithms, using defaults. Error code: %d", hostkeyPrefResult);
+        // Try with more algorithms as fallback
+        hostkeyAlgorithms = "ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256";
+        hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
+        if (hostkeyPrefResult == 0) {
+            NMSSHLogVerbose(@"Configured preferred host key algorithms (fallback): %s", hostkeyAlgorithms);
+        }
     } else {
         NMSSHLogVerbose(@"Configured preferred host key algorithms: %s", hostkeyAlgorithms);
     }
