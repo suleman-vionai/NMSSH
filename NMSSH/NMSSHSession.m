@@ -303,6 +303,17 @@
         NMSSHLogError(@"Failure setting the banner");
     }
 
+    // Configure key exchange algorithms to match server requirements
+    // Server requires: ecdh-sha2-nistp521, ecdh-sha2-nistp384, ecdh-sha2-nistp256
+    // Also include diffie-hellman-group16-sha512 and diffie-hellman-group18-sha512 if supported
+    const char *kexAlgorithms = "ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512";
+    int methodPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_KEX, kexAlgorithms);
+    if (methodPrefResult != 0) {
+        NMSSHLogWarn(@"Failed to set preferred KEX algorithms, using defaults. Error code: %d", methodPrefResult);
+    } else {
+        NMSSHLogVerbose(@"Configured preferred KEX algorithms: %s", kexAlgorithms);
+    }
+
     // Start the session
     if (libssh2_session_handshake(self.session, CFSocketGetNative(_socket))) {
         NMSSHLogError(@"Failure establishing SSH session");
