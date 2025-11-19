@@ -328,6 +328,18 @@
         NMSSHLogInfo(@"Successfully configured host key algorithms (restricted to): %s", hostkeyAlgorithms);
     }
 
+    // Configure signature algorithms for user authentication
+    // Server requires: rsa-sha2-256, rsa-sha2-512 (not ssh-rsa)
+    // libssh2 1.11.0 supports rsa-sha2-256/512 for user authentication
+    // Prefer rsa-sha2-512, then rsa-sha2-256 (more secure)
+    const char *signAlgorithms = "rsa-sha2-512,rsa-sha2-256";
+    int signPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_SIGN_ALGO, signAlgorithms);
+    if (signPrefResult != 0) {
+        NMSSHLogWarn(@"Failed to set signature algorithms preference! Error code: %d", signPrefResult);
+    } else {
+        NMSSHLogInfo(@"Successfully configured signature algorithms for user auth: %s", signAlgorithms);
+    }
+
     // Start the session
     int handshakeResult = libssh2_session_handshake(self.session, CFSocketGetNative(_socket));
     if (handshakeResult) {
