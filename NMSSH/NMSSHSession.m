@@ -314,23 +314,18 @@
         NMSSHLogVerbose(@"Configured preferred KEX algorithms: %s", kexAlgorithms);
     }
 
-    // Configure host key algorithms to prefer modern algorithms
+    // Configure host key algorithms to restrict to only what server accepts
     // Server has ssh-rsa and ssh-ed25519 host keys, but rejects ssh-rsa in HostkeyAlgorithms
     // libssh2 1.11.0 supports ssh-ed25519 for host keys
-    // Try only ssh-ed25519 first since server has this host key and likely accepts it
-    // If that fails, libssh2 will fall back to other algorithms it supports
-    const char *hostkeyAlgorithms = "ssh-ed25519";
+    // IMPORTANT: libssh2_session_method_pref should restrict what's offered, not just prefer
+    // If prefvar is set, libssh2 uses that string directly in the KEXINIT message
+    const char *hostkeyAlgorithms = "ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256";
     int hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
     if (hostkeyPrefResult != 0) {
-        NMSSHLogWarn(@"Failed to set preferred host key algorithms, using defaults. Error code: %d", hostkeyPrefResult);
-        // Try with more algorithms as fallback
-        hostkeyAlgorithms = "ssh-ed25519,ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256";
-        hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
-        if (hostkeyPrefResult == 0) {
-            NMSSHLogVerbose(@"Configured preferred host key algorithms (fallback): %s", hostkeyAlgorithms);
-        }
+        NMSSHLogError(@"CRITICAL: Failed to set host key algorithms preference! Error code: %d", hostkeyPrefResult);
+        NMSSHLogError(@"libssh2 will use defaults which may include ssh-rsa and ssh-dss");
     } else {
-        NMSSHLogVerbose(@"Configured preferred host key algorithms: %s", hostkeyAlgorithms);
+        NMSSHLogInfo(@"Successfully configured host key algorithms (restricted to): %s", hostkeyAlgorithms);
     }
 
     // Start the session
