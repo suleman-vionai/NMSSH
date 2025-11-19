@@ -339,8 +339,23 @@
     }
 
     // Start the session
-    if (libssh2_session_handshake(self.session, CFSocketGetNative(_socket))) {
-        NMSSHLogError(@"Failure establishing SSH session");
+    int handshakeResult = libssh2_session_handshake(self.session, CFSocketGetNative(_socket));
+    if (handshakeResult) {
+        // Get detailed error information from libssh2
+        char *errorMsg = NULL;
+        int errorMsgLen = 0;
+        libssh2_session_last_error(self.session, &errorMsg, &errorMsgLen, 0);
+        
+        NMSSHLogError(@"Failure establishing SSH session. Error code: %d", handshakeResult);
+        if (errorMsg && errorMsgLen > 0) {
+            NSString *errorString = [[NSString alloc] initWithBytes:errorMsg length:errorMsgLen encoding:NSUTF8StringEncoding];
+            NMSSHLogError(@"libssh2 error message: %@", errorString);
+        }
+        
+        // Get the last error code
+        int lastError = libssh2_session_last_errno(self.session);
+        NMSSHLogError(@"libssh2 last error code: %d", lastError);
+        
         [self disconnect];
 
         return NO;
