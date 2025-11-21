@@ -315,10 +315,10 @@
     }
 
     // Configure host key algorithms according to requirements
-    // Allowed Host Key Algorithms (for clients): ecdsa-sha2-nistp384, ecdsa-sha2-nistp256, ecdsa-sha2-nistp521, ssh-rsa:2048, ssh-rsa:3072, ssh-rsa:4096
-    // Note: OpenSSH doesn't use key size in algorithm name, so we use "ssh-rsa" and "ecdsa-sha2-nistp*"
-    // Order: ECDSA first (more secure), then RSA
-    const char *hostkeyAlgorithms = "ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256,ssh-rsa";
+    // Server accepts: ecdsa-sha2-nistp256, ecdsa-sha2-nistp384, ecdsa-sha2-nistp521, rsa-sha2-512, rsa-sha2-256
+    // Note: Server does NOT accept ssh-rsa for host keys, only rsa-sha2-512 and rsa-sha2-256
+    // Order: ECDSA first (more secure), then RSA-SHA2
+    const char *hostkeyAlgorithms = "ecdsa-sha2-nistp521,ecdsa-sha2-nistp384,ecdsa-sha2-nistp256,rsa-sha2-512,rsa-sha2-256";
     NMSSHLogInfo(@"Attempting to set host key algorithms to: %s", hostkeyAlgorithms);
     int hostkeyPrefResult = libssh2_session_method_pref(self.session, LIBSSH2_METHOD_HOSTKEY, hostkeyAlgorithms);
     if (hostkeyPrefResult != 0) {
@@ -340,6 +340,16 @@
         NMSSHLogInfo(@"Successfully configured signature algorithms for user auth: %s", signAlgorithms);
     }
 
+    // Debug: Log what algorithms are actually being used
+    const char *actualKex = libssh2_session_methods(self.session, LIBSSH2_METHOD_KEX);
+    const char *actualHostkey = libssh2_session_methods(self.session, LIBSSH2_METHOD_HOSTKEY);
+    const char *actualCipher = libssh2_session_methods(self.session, LIBSSH2_METHOD_CRYPT_CS);
+    const char *actualMac = libssh2_session_methods(self.session, LIBSSH2_METHOD_MAC_CS);
+    NMSSHLogInfo(@"DEBUG: Client KEX algorithms: %s", actualKex ? actualKex : "NULL");
+    NMSSHLogInfo(@"DEBUG: Client Hostkey algorithms: %s", actualHostkey ? actualHostkey : "NULL");
+    NMSSHLogInfo(@"DEBUG: Client Cipher algorithms: %s", actualCipher ? actualCipher : "NULL");
+    NMSSHLogInfo(@"DEBUG: Client MAC algorithms: %s", actualMac ? actualMac : "NULL");
+    
     // Start the session
     int handshakeResult = libssh2_session_handshake(self.session, CFSocketGetNative(_socket));
     if (handshakeResult) {
@@ -358,10 +368,30 @@
         int lastError = libssh2_session_last_errno(self.session);
         NMSSHLogError(@"libssh2 last error code: %d", lastError);
         
+        // Log what algorithms were actually negotiated (if handshake got far enough)
+        const char *negotiatedKex = libssh2_session_methods(self.session, LIBSSH2_METHOD_KEX);
+        const char *negotiatedHostkey = libssh2_session_methods(self.session, LIBSSH2_METHOD_HOSTKEY);
+        if (negotiatedKex) {
+            NMSSHLogError(@"DEBUG: Negotiated KEX: %s", negotiatedKex);
+        }
+        if (negotiatedHostkey) {
+            NMSSHLogError(@"DEBUG: Negotiated Hostkey: %s", negotiatedHostkey);
+        }
+        
         [self disconnect];
 
         return NO;
     }
+    
+    // Log successfully negotiated algorithms
+    const char *negotiatedKex = libssh2_session_methods(self.session, LIBSSH2_METHOD_KEX);
+    const char *negotiatedHostkey = libssh2_session_methods(self.session, LIBSSH2_METHOD_HOSTKEY);
+    const char *negotiatedCipher = libssh2_session_methods(self.session, LIBSSH2_METHOD_CRYPT_CS);
+    const char *negotiatedMac = libssh2_session_methods(self.session, LIBSSH2_METHOD_MAC_CS);
+    NMSSHLogInfo(@"DEBUG: Successfully negotiated KEX: %s", negotiatedKex ? negotiatedKex : "NULL");
+    NMSSHLogInfo(@"DEBUG: Successfully negotiated Hostkey: %s", negotiatedHostkey ? negotiatedHostkey : "NULL");
+    NMSSHLogInfo(@"DEBUG: Successfully negotiated Cipher: %s", negotiatedCipher ? negotiatedCipher : "NULL");
+    NMSSHLogInfo(@"DEBUG: Successfully negotiated MAC: %s", negotiatedMac ? negotiatedMac : "NULL");
 
     NMSSHLogVerbose(@"Remote host banner is %@", [self remoteBanner]);
 
